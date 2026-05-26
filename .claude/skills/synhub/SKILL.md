@@ -1,5 +1,9 @@
 ---
+name: synhub
 description: SynHub 芯片综合知识库接入指南。当用户想接入 SynHub 知识库、搜索芯片综合文档、或了解 MCP Server 配置时使用。
+when_to_use: 用户问"怎么接入知识库"、"搜索芯片文档"、"SynHub 怎么用"、"MCP Server 配置"、"低功耗设计资料"时触发
+argument-hint: "[query]"
+allowed-tools: Bash(python *) Read Glob
 ---
 
 # SynHub 知识库使用指南
@@ -87,6 +91,17 @@ SSE 模式下 `.mcp.json` 改为：
 }
 ```
 
+## 配置项一览
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `MIFY_API_KEY` | — | Mify 平台 API Key |
+| `MIFY_DATASET_IDS` | — | 知识库 ID，多个逗号分隔 |
+| `MIFY_TOP_K` | 5 | 每次检索返回结果数 |
+| `MCP_TRANSPORT` | stdio | 传输模式：`stdio` 或 `sse` |
+| `MCP_HOST` | 0.0.0.0 | SSE 绑定地址 |
+| `MCP_PORT` | 8003 | SSE 端口 |
+
 ## 常见问题
 
 **Q: 搜索返回"未找到相关内容"？**
@@ -97,3 +112,8 @@ A: 在 Mify 平台创建数据集后，把 ID 加到 `.env` 的 `MIFY_DATASET_ID
 
 **Q: 如何验证连接正常？**
 A: 运行 `python tests/test_sse.py`（需先启动 SSE 模式）。
+
+## 辅助文件
+
+- [setup.sh](scripts/setup.sh) — 一键安装脚本
+- [examples/](examples/) — 使用示例
