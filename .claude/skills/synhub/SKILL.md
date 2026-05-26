@@ -1,3 +1,7 @@
+---
+description: SynHub 芯片综合知识库接入指南。当用户想接入 SynHub 知识库、搜索芯片综合文档、或了解 MCP Server 配置时使用。
+---
+
 # SynHub 知识库使用指南
 
 SynHub 是芯片综合领域知识库 MCP Server，为 Claude Code 提供低功耗设计、UPF、CLP 等方向的文档检索能力。
