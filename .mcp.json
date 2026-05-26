@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "synhub": {
+      "command": "python",
+      "args": ["C:\\Users\\RuohanMa\\projs\\SynHub\\adapters\\mcp_server.py"]
+    },
+    "feishu-mcp": {
+      "transport": "sse",
+      "url": "https://mcp.feishu.cn/mcp/mcp_trLgh3OR8hxVZevHmN5jBPMGs_bGcxJLR5Ln8n80UQ5Ig2Vrmtc-PM_lgxT82YSvRCfnRSTLxS0"
+    }
+  }
+}
