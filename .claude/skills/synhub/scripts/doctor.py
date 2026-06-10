@@ -11,6 +11,7 @@
     5. skill/.env 关键字段已填
     6. 当前项目 .mcp.json 包含 synhub
     7. **真打一次 Mify 接口**(query='clock', top_k=1) — 验证 API Key、网络、Mify 服务
+    8. 反馈链路凭证(.mcp.json 含飞书 4 项) — 验证 submit_feedback 能写多维表格
 """
 import argparse
 import json
@@ -169,6 +170,51 @@ def check_mcp_config() -> Check:
     return c.passed(str(mcp_file))
 
 
+FEEDBACK_KEYS = ("FEISHU_APP_ID", "FEISHU_APP_SECRET", "BITABLE_APP_TOKEN", "BITABLE_TABLE_ID")
+
+
+def check_feedback_credentials() -> Check:
+    """检查 .mcp.json 中是否注入了反馈链路所需的 4 项飞书凭证。
+    submit_feedback 工具依赖 MCP 进程能读到这 4 项,否则会返回失败提示。
+    """
+    c = Check("反馈链路凭证(.mcp.json 含飞书 4 项)")
+    cwd = Path.cwd()
+    mcp_file = None
+    for parent in [cwd] + list(cwd.parents):
+        candidate = parent / ".mcp.json"
+        if candidate.exists():
+            mcp_file = candidate
+            break
+    if not mcp_file:
+        return c.failed("未找到 .mcp.json", "在项目根运行 setup.py")
+    try:
+        config = json.loads(mcp_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        return c.failed(f"{mcp_file} 不是合法 JSON: {e}", "修复 JSON 语法")
+    synhub_cfg = config.get("mcpServers", {}).get("synhub")
+    if not synhub_cfg:
+        return c.failed(f"{mcp_file} 中无 synhub 配置", "运行 setup.py")
+    mcp_env = synhub_cfg.get("env", {}) or {}
+    missing = [k for k in FEEDBACK_KEYS if not mcp_env.get(k)]
+    if not missing:
+        return c.passed("4 项齐全(可写多维表格)")
+
+    # 看看 skill/.env 里是否有,有的话直接提示重跑 setup
+    skill_env = read_skill_env()
+    skill_has = [k for k in missing if skill_env.get(k)]
+    if skill_has:
+        fix = (
+            f"skill/.env 已有 {len(skill_has)} 项,重跑 setup.py 自动补齐: "
+            f"python {Path(__file__).parent / 'setup.py'}"
+        )
+    else:
+        fix = (
+            f"先在 {skill_root() / '.env'} 填入 {', '.join(missing)},"
+            f"再重跑 setup.py 注入 .mcp.json"
+        )
+    return c.failed(f"缺失: {', '.join(missing)}", fix)
+
+
 def check_mify_api(synhub_dir: Path) -> Check:
     """真打一次 Mify 接口,极轻量(top_k=1, query=clock, num_variants=1)。"""
     c = Check("Mify 接口连通(真打)")
@@ -232,6 +278,7 @@ def main():
         env_check = next((x for x in checks if x.name == "skill/.env 配置"), None)
         if env_check and env_check.ok:
             checks.append(check_mify_api(synhub_dir))
+        checks.append(check_feedback_credentials())
 
     failed = 0
     for c in checks:

@@ -42,6 +42,11 @@ MCP_ENV_KEYS = [
     "MCP_TRANSPORT",
     "MCP_HOST",
     "MCP_PORT",
+    # 反馈链路:submit_feedback 工具需要这 4 项把记录写入飞书多维表格
+    "FEISHU_APP_ID",
+    "FEISHU_APP_SECRET",
+    "BITABLE_APP_TOKEN",
+    "BITABLE_TABLE_ID",
 ]
 
 
@@ -166,16 +171,32 @@ def write_mcp_config(project_root: Path, synhub_dir: Path):
 
     config.setdefault("mcpServers", {})
 
-    if "synhub" in config["mcpServers"]:
-        print(f".mcp.json 中已有 synhub 配置,跳过: {mcp_file}")
-        return
-
     server_path = synhub_dir / "adapters" / "mcp_server.py"
 
     # 从 skill/.env 读凭证,注入到 mcpServers.synhub.env
     # 这样 MCP server 启动时不依赖 SynHub 仓库 .env
     skill_env = read_skill_env()
     env_for_mcp = {k: skill_env[k] for k in MCP_ENV_KEYS if k in skill_env and skill_env[k]}
+
+    existing = config["mcpServers"].get("synhub")
+    if existing:
+        # 已存在 synhub 配置:补齐 env 中缺失/为空的字段,不覆盖用户已有值
+        existing_env = existing.get("env", {}) or {}
+        added = []
+        for k, v in env_for_mcp.items():
+            if not existing_env.get(k):
+                existing_env[k] = v
+                added.append(k)
+        if added:
+            existing["env"] = existing_env
+            config["mcpServers"]["synhub"] = existing
+            mcp_file.write_text(
+                json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            print(f".mcp.json 已存在 synhub 配置,补齐 {len(added)} 项: {', '.join(added)}")
+        else:
+            print(f".mcp.json 中已有 synhub 配置,凭证齐全,跳过: {mcp_file}")
+        return
 
     server_cfg = {
         "command": sys.executable,
