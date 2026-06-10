@@ -1,25 +1,12 @@
+from pathlib import Path
+
 from anthropic import Anthropic
 
 from config.settings import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 
-SYSTEM_PROMPT = """\
-你是芯片综合（Logic Synthesis）领域的资深技术专家，拥有丰富的数字芯片设计与综合经验。
-
-你的职责是：
-1. 基于提供的参考资料，准确回答用户关于芯片综合的问题
-2. 回答时优先引用参考资料中的内容，确保信息有据可查
-3. 如果参考资料不足以回答问题，请如实说明"根据现有资料无法确定"，不要编造信息
-4. 回答要专业、简洁、有条理
-
-你可以回答的领域包括但不限于：
-- 逻辑综合（DC / Genus 等工具使用与流程）
-- 时序分析与约束（SDC、时序收敛）
-- 功耗优化（多电压域、power gating、clock gating）
-- 面积优化与 QoR 改善
-- 形式验证（LEC / Formality）
-- DFT 相关流程
-- 脚本编写（Tcl / 系列化脚本）\
-"""
+# 从外部文件加载 system prompt，方便迭代优化，无需改代码
+_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "system_prompt.md"
+SYSTEM_PROMPT = _PROMPT_PATH.read_text(encoding="utf-8").strip()
 
 
 def _build_context(context_docs: str) -> str:
