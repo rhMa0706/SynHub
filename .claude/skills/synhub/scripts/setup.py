@@ -31,6 +31,7 @@ REPO_URL = "https://github.com/rhMa0706/SynHub.git"
 MIN_PY = (3, 10)
 
 # 注入到 .mcp.json env 字段的变量(MCP server 启动时读)
+# .env 里没填的 key 会跳过,使用 config/settings.py 的默认值
 MCP_ENV_KEYS = [
     "MIFY_API_KEY",
     "MIFY_DATASET_IDS",
@@ -38,9 +39,6 @@ MCP_ENV_KEYS = [
     "MIFY_RRF_K",
     "MIFY_NUM_VARIANTS",
     "MIFY_RETRIEVE_WORKERS",
-    "LLM_API_KEY",
-    "LLM_BASE_URL",
-    "LLM_MODEL",
     "MCP_TRANSPORT",
     "MCP_HOST",
     "MCP_PORT",
