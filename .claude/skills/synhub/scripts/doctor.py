@@ -150,6 +150,22 @@ def check_env() -> Check:
     return c.passed(f"KEY={api_key[:10]}... DATASETS={n}")
 
 
+def check_feedback_env() -> Check:
+    """校验反馈链路所需的飞书配置(feedback.py 用,与 MCP server 无关)。"""
+    c = Check("反馈链路 .env 配置")
+    env = read_skill_env()
+    required = ["FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEEDBACK_CHAT_ID",
+                "BITABLE_APP_TOKEN", "BITABLE_TABLE_ID"]
+    missing = [k for k in required if not env.get(k)]
+    if missing:
+        env_file = skill_root() / ".env"
+        return c.failed(
+            f"缺失: {', '.join(missing)}",
+            f"编辑 {env_file},把 7 个 key 全部填齐。反馈功能只读 synhub/.env,改 .mcp.json 没用。",
+        )
+    return c.passed("飞书 + Bitable 5 项已配置")
+
+
 def check_mcp_config() -> Check:
     c = Check(".mcp.json 包含 synhub")
     cwd = Path.cwd()
@@ -272,6 +288,7 @@ def main():
     checks.append(check_synhub_repo(synhub_dir))
 
     checks.append(check_env())
+    checks.append(check_feedback_env())
     if synhub_dir:
         checks.append(check_mcp_config())
         # 只有 .env 通过,才真打接口(否则白打)

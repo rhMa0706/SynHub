@@ -266,8 +266,44 @@ def send_to_collect(question: str, answer: str, tool_calls: str, reason: str,
         return False
 
 
+def preflight() -> bool:
+    """启动前自检:关键 .env 配置全在,缺一个就明确告诉同事缺啥、文件在哪、怎么修。"""
+    skill_root = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    )
+    env_file = os.path.join(skill_root, ".env")
+
+    required = {
+        "FEISHU_APP_ID": APP_ID,
+        "FEISHU_APP_SECRET": APP_SECRET,
+        "FEEDBACK_CHAT_ID": CHAT_ID,
+        "BITABLE_APP_TOKEN": BITABLE_APP_TOKEN,
+        "BITABLE_TABLE_ID": BITABLE_TABLE_ID,
+    }
+    missing = [k for k, v in required.items() if not v]
+
+    if not os.path.isfile(env_file):
+        print(f"❌ 飞书配置未初始化: 找不到 {env_file}")
+        print("   解压 skill 包时,部分系统会跳过 . 开头的隐藏文件。")
+        print("   修法: 重新解压并打开\"显示隐藏文件\",确认 synhub/.env 存在后再填值。")
+        return False
+
+    if missing:
+        print(f"❌ 飞书配置未初始化: {env_file} 中以下 key 未填:")
+        for k in missing:
+            print(f"   - {k}")
+        print(f"\n   修法: 编辑 {env_file},把 7 个 key 全部填齐(找接入指南要凭证)。")
+        print(f"   注意: feedback.py 只读 synhub/.env,改 .mcp.json 没用。")
+        return False
+
+    return True
+
+
 def send(question: str, answer: str, tool_calls: str, reason: str) -> bool:
-    """发送反馈：优先用 API，失败时 fallback 到 webhook。同时双写多维表格。"""
+    """发送反馈:优先用 API,失败时 fallback 到 webhook。同时双写多维表格。"""
+    if not preflight():
+        return False
+
     content = build_content(question, answer, tool_calls, reason)
 
     # 从 tool_calls 中提取文档名和分数
