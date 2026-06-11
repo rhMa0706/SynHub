@@ -16,6 +16,23 @@ from config.settings import (
 )
 
 # ---------------------------------------------------------------------------
+# 全局 HTTP 客户端(连接复用)
+# 每次 retrieve 会发起 N×M 次请求(N 变体 × M 数据集);新建连接的 TLS/握手开销
+# 在国内网络下每次约 50-100ms。复用同一个 Client + Keep-Alive 连接池可以省掉。
+# ---------------------------------------------------------------------------
+_HTTP_CLIENT: httpx.Client | None = None
+
+
+def _get_http_client() -> httpx.Client:
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is None:
+        _HTTP_CLIENT = httpx.Client(
+            timeout=30,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=40),
+        )
+    return _HTTP_CLIENT
+
+# ---------------------------------------------------------------------------
 # Domain classification
 # ---------------------------------------------------------------------------
 
@@ -181,7 +198,7 @@ def _fetch_doc_titles(dataset_id: str) -> list[str]:
         "Content-Type": "application/json",
     }
     try:
-        resp = httpx.get(url, headers=headers, params={"page": 1, "limit": 200}, timeout=30)
+        resp = _get_http_client().get(url, headers=headers, params={"page": 1, "limit": 200})
         resp.raise_for_status()
         titles = [d["name"] for d in resp.json().get("data", [])]
     except Exception:
@@ -416,7 +433,7 @@ def _fetch_one_variant(
             },
         },
     }
-    resp = httpx.post(url, json=payload, headers=headers, timeout=30)
+    resp = _get_http_client().post(url, json=payload, headers=headers)
     resp.raise_for_status()
     results = []
     for record in resp.json().get("records", []):

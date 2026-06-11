@@ -48,7 +48,7 @@ MCP_PORT = int(os.getenv("MCP_PORT", "8003"))
 # RAG-Fusion
 MIFY_RRF_K = int(os.getenv("MIFY_RRF_K", "40"))
 MIFY_NUM_VARIANTS = int(os.getenv("MIFY_NUM_VARIANTS", "5"))
-MIFY_RETRIEVE_WORKERS = int(os.getenv("MIFY_RETRIEVE_WORKERS", "3"))
+MIFY_RETRIEVE_WORKERS = int(os.getenv("MIFY_RETRIEVE_WORKERS", "5"))
 
 # LLM 客户端（通过 Mify 代理调用）
 LLM_API_KEY = os.getenv("LLM_API_KEY", MIFY_API_KEY)
