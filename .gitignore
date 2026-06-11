@@ -14,3 +14,7 @@ Thumbs.db
 
 # Test / Cache
 .pytest_cache/
+
+# Node (feishu-event-bot)
+node_modules/
+npm-debug.log*

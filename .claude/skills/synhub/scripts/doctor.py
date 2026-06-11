@@ -215,6 +215,20 @@ def check_feedback_credentials() -> Check:
     if not missing:
         return c.passed("4 项齐全(可写多维表格)")
 
+    # 维护者本仓库分支:.mcp.json 没注入 env,但项目根 .env 已有 4 项凭证,
+    # config/settings.py 会从 .env 加载,server 仍能正常读到。直接判过。
+    repo_env_file = mcp_file.parent / ".env"
+    if repo_env_file.exists():
+        repo_env_text = repo_env_file.read_text(encoding="utf-8", errors="ignore")
+        repo_env = dict(
+            line.split("=", 1)
+            for line in repo_env_text.splitlines()
+            if "=" in line and not line.strip().startswith("#")
+        )
+        repo_env = {k.strip(): v.strip() for k, v in repo_env.items()}
+        if all(repo_env.get(k) for k in FEEDBACK_KEYS):
+            return c.passed("4 项在项目根 .env 中(维护者本仓库,settings.py 自动加载)")
+
     # 看看 skill/.env 里是否有,有的话直接提示重跑 setup
     skill_env = read_skill_env()
     skill_has = [k for k in missing if skill_env.get(k)]

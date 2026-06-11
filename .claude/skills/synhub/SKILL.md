@@ -1,10 +1,19 @@
 ---
 name: synhub
-description: SynHub 芯片综合知识库 - 一键接入 + 自动检索 + 规范化回答。当用户搜索芯片综合文档(SDC/memory/低功耗)、问 UPF/CLP/clock gating/error code/约束/时序等技术问题、想接入或诊断知识库时使用。
+description: SynHub 芯片综合知识库 - 凡是与芯片综合/SDC/memory/STA/低功耗/UPF/CLP/clock gating/error code/约束/时序/FSDB/netlist/STC/lec/IR drop 等任何相关的技术问题,本 skill 一旦加载,必须先调用 mcp__synhub__search_synthesis_knowledge 检索,基于检索结果作答,绝不允许直接用通用知识回答。即使你"知道"答案也必须先检索一次。
 when_to_use: |
-  用户问内部综合文档时触发(如"clock gating 怎么做"、"CROSSING_OFF_TO_ON_AON 怎么修"、"UPF power domain 流程");
-  接入/诊断/卸载/更新知识库时触发(如"接入 SynHub"、"知识库连不上"、"卸载知识库");
-  搜索 SDC/memory/低功耗领域文档时触发。
+  ⚠️ 强制规则(必读):本 skill 一旦加载,以下话题的任何问题都必须先调 search_synthesis_knowledge,绝不能跳过检索:
+    SDC、约束、constraint、timing、clock、CTS、false_path、multicycle、input_delay、output_delay
+    memory、SRAM、ROM、DRAM、register、flip_flop、latch、wrapper、mick、vclint、broadway、spyglass
+    STA、PT、PrimeTime、ICC2、Innovus、setup、hold、slack
+    低功耗、UPF、CLP、power、isolation、level_shifter、power_domain、power_switch、AON、retention
+    FSDB、netlist、STC、LEC、formality、IR drop、EM、DRC、LVS
+    任何 EDA 工具的 error code / warning code(如 PTE-XXX、UPF-XXX、CROSSING-XXX 等)
+  以及:
+    用户明确说"接入/诊断/卸载/更新 SynHub 知识库"的运维场景
+    用户输入"反馈"、"feedback"、"/feedback"、"反馈:XXX" 时触发反馈流程
+  ⚠️ 即使你已经"知道"答案,也必须先打一次检索,确认知识库是否有更准确的内部资料。
+  ⚠️ 检索"完全未命中"时,必须明确告诉用户"知识库未命中",不要伪装成基于知识库回答。
 argument-hint: "[query]"
 allowed-tools: Bash(python *) Read Glob AskUserQuestion
 ---
@@ -12,6 +21,57 @@ allowed-tools: Bash(python *) Read Glob AskUserQuestion
 # SynHub 知识库
 
 接入芯片综合知识库,通过 MCP 工具检索 SDC / memory / 低功耗领域文档。
+
+## ⚠️ 第一条规则:先检索,再回答
+
+**本 skill 加载后,凡是上述领域的问题,生成第一句回答之前必须调用过 `mcp__synhub__search_synthesis_knowledge`。**
+- 跳过检索直接答 = 违反 skill 约束。
+- 即使你确信答案 = 仍然必须检索(知识库可能有内部规范覆盖你的通用知识)。
+- 用户没说"用知识库" = 不影响,你看到上述话题就该自己去检索。
+- 第一次检索 0 命中 = 至少换 1-2 次关键词再重试(中英文、缩写展开、相关同义词),仍 0 命中才能声明未命中。
+
+## 标准输出模板(每次基于知识库回答按此结构,顺序不可变)
+
+### 模板 A — 检索有命中
+
+```
+【结论】
+<一两句直接答,不复述问题>
+
+【依据】
+- <要点 1> [document_name_1]
+- <要点 2> [document_name_2]
+
+【置信度】高 / 中 / 低
+- 高:检索结果直接覆盖问题,证据充分
+- 中:部分覆盖,需要少量推断
+- 低:仅边缘相关,建议进一步确认
+
+【参考文档】
+- document_name_1 — doc_url_1
+- document_name_2 — doc_url_2
+
+---
+💬 这个回答有问题?
+- 回复"反馈"一键提交给维护者
+- 或回复"反馈:<原因>"附上原因
+```
+
+### 模板 B — 检索完全未命中(换 1-2 次关键词后仍 0 条)
+
+```
+⚠️ 知识库未命中相关内容(已尝试 query: <关键词1>、<关键词2>)。
+
+以下基于通用知识回答,仅供参考,请以实际文档为准:
+
+<通用知识回答>
+
+💡 建议尝试英文关键词或更具体的术语(例如 <建议词>)再问一次。
+
+---
+💬 知识库该补这块内容?
+- 回复"反馈"告诉维护者哪个领域需要补文档
+```
 
 ## 文档地图(按需查阅)
 
