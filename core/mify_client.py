@@ -37,10 +37,19 @@ def _get_http_client() -> httpx.Client:
 # ---------------------------------------------------------------------------
 
 
+def _kw_hit(kw: str, lower_query: str) -> bool:
+    """短(<=4 char)纯 ASCII 关键词要求词边界,避免 'ff' 匹配 'signoff/diff/effort'。
+    长关键词或含中文的关键词继续用子串匹配。
+    """
+    if len(kw) <= 4 and kw.isascii():
+        return re.search(r"(?<![A-Za-z0-9_])" + re.escape(kw) + r"(?![A-Za-z0-9_])", lower_query) is not None
+    return kw in lower_query
+
+
 def classify_domain(query: str) -> list[str]:
     """根据查询内容判断所属领域，返回匹配的 dataset_id 列表。
 
-    匹配策略：查询词（含缩写展开）与领域关键词做子串匹配。
+    匹配策略：短英文缩写(<=4 char)用词边界匹配,其余用子串匹配。
     返回空列表表示无法判断领域，应搜全部。
     """
     lower = query.lower()
@@ -49,7 +58,7 @@ def classify_domain(query: str) -> list[str]:
     for ds_id, info in DOMAIN_MAP.items():
         count = 0
         for kw in info["keywords"]:
-            if kw in lower:
+            if _kw_hit(kw, lower):
                 count += 1
         if count > 0:
             matched[ds_id] = count

@@ -1,0 +1,98 @@
+[
+  {
+    "name": "综合策略",
+    "id": "2fb30098-e238-4daa-992c-d7b9d735e87c",
+    "docs": 118,
+    "words": 1685323
+  },
+  {
+    "name": "项目经验",
+    "id": "86fdcf82-e017-4069-bcbc-b38565f3ba46",
+    "docs": 21,
+    "words": 351583
+  },
+  {
+    "name": "时序分析",
+    "id": "bb4d9587-8010-46b1-b8cf-8798b0c6a0eb",
+    "docs": 86,
+    "words": 1741637
+  },
+  {
+    "name": "交付",
+    "id": "a7851884-20e8-47f8-a46f-2492de614646",
+    "docs": 50,
+    "words": 622934
+  },
+  {
+    "name": "复盘",
+    "id": "e4821655-d759-41ce-ad6d-7d09ee6de943",
+    "docs": 117,
+    "words": 1191834
+  },
+  {
+    "name": "低功耗 Part 2",
+    "id": "e7c1e746-e1d0-4bb3-b378-d36e6fe08291",
+    "docs": 21,
+    "words": 129163
+  },
+  {
+    "name": "穿线",
+    "id": "82a67a2c-f83c-41be-9fa8-d8646bdad631",
+    "docs": 3,
+    "words": 37354
+  },
+  {
+    "name": "Signoff",
+    "id": "acc7250a-026f-437f-86bc-28c45f2b383f",
+    "docs": 2,
+    "words": 18718
+  },
+  {
+    "name": "SDC Part2",
+    "id": "dce185be-b1c9-4a86-bd4d-7e6d43346255",
+    "docs": 65,
+    "words": 401494
+  },
+  {
+    "name": "PPA",
+    "id": "39a13266-3e70-43bb-9e38-32c7ff6e5eea",
+    "docs": 34,
+    "words": 80851
+  },
+  {
+    "name": "Memory Part2",
+    "id": "52dfe94f-507e-4cff-a172-6d86d90bc582",
+    "docs": 31,
+    "words": 121863
+  },
+  {
+    "name": "LEC",
+    "id": "fb33c54a-42ea-45ae-8b1a-668d6c71d8c4",
+    "docs": 3,
+    "words": 6012
+  },
+  {
+    "name": "DFT",
+    "id": "5c906757-2747-4718-9522-bd17852035ab",
+    "docs": 11,
+    "words": 225336
+  },
+  {
+    "name": "sdc 知识库",
+    "id": "b26e181e-fc6c-4371-8a11-3e19580afd85",
+    "docs": 27,
+    "words": 120385
+  },
+  {
+    "name": "Memory Part1",
+    "id": "fa43ebb5-0333-4e8f-9351-33952daafaec",
+    "docs": 36,
+    "words": 225220
+  },
+  {
+    "name": "低功耗领域",
+    "id": "99d29d7f-bd5a-491d-b34f-3cb1cef5eac7",
+    "docs": 93,
+    "words": 150371
+  }
+]

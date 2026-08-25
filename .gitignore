@@ -18,3 +18,6 @@ Thumbs.db
 # Node (feishu-event-bot)
 node_modules/
 npm-debug.log*
+
+# Feishu OAuth token
+material/feishu_docs/.feishu_user_token.json
