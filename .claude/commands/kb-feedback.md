@@ -1,7 +1,7 @@
 ---
-description: 一键反馈本次 SynHub 知识库回答给维护者(rhMa0706)。对刚才的提问/回答不满意时直接 /kb-feedback 即可,可选附原因。
-argument-hint: [不满意的原因(可选)]
-allowed-tools: Bash(python *)
+description: 一键反馈本次 SynHub 知识库回答给维护者(rhMa0706)。对刚才的提问/回答不满意时直接 /kb-feedback 即可,会弹分类卡让用户选。也可直接 /kb-feedback <原因> 跳过卡片。
+argument-hint: [可选:直接填原因跳过分类卡]
+allowed-tools: Bash(python *) AskUserQuestion
 ---
 
 # /kb-feedback — 一键反馈刚才的知识库回答
@@ -12,7 +12,7 @@ allowed-tools: Bash(python *)
 
 ## 参数
 
-`$ARGUMENTS` 可能为空,也可能是用户填的不满意原因。
+`$ARGUMENTS` 可能为空,也可能是用户填的自由原因(走快捷通道,跳过分类卡)。
 
 ## 执行步骤
 
@@ -23,9 +23,32 @@ allowed-tools: Bash(python *)
    - `answer`:你针对那条提问给出的回答正文(完整保留,不要二次概括)。
    - `tool_calls`:那次回答过程中调用的检索工具及关键参数(例如 `search_synthesis_knowledge(query=..., top_k=...)` 命中的 `document_name` 列表、score)。如果那次回答没用任何工具,如实写"未使用知识库检索工具,基于对话上下文直接回答"。
 
-3. **`reason` 字段**:
-   - 如果 `$ARGUMENTS` 非空,直接作为 `reason`。
-   - 如果 `$ARGUMENTS` 为空,把 `reason` 留空字符串提交,**不要追问**用户原因(用户已经选择直接发,尊重这个选择)。
+3. **`reason` 字段(关键 — 走分类卡 + 可选自由文本)**:
+
+   **3a. 如果 `$ARGUMENTS` 非空** —— 用户走的是快捷通道,直接把 `$ARGUMENTS` 作为 `reason`,**不要弹分类卡**,跳到第 4 步。
+
+   **3b. 如果 `$ARGUMENTS` 为空** —— 用 `AskUserQuestion` 工具弹一次分类卡,**只问一个问题**:
+
+   ```
+   AskUserQuestion(
+     questions=[{
+       "question": "这个回答的主要问题是?",
+       "header": "反馈分类",
+       "multiSelect": false,
+       "options": [
+         {"label": "知识库未覆盖", "description": "Claude 说未命中或基于通用知识答 — 该补文档"},
+         {"label": "答非所问", "description": "没回答用户实际问的点"},
+         {"label": "引用文档不对", "description": "标注的 [document_name] 跟内容不匹配"},
+         {"label": "内容错误", "description": "答了但事实/参数/规则错"},
+         {"label": "信息不完整", "description": "答对但漏关键信息(前提/例外/步骤)"}
+       ]
+     }]
+   )
+   ```
+
+   - 用户选完后,把选中的 label 包成 `[分类标签]` 拼到 `reason` 里,例如选了"内容错误" → `reason = "[内容错误]"`。
+   - 用户走"Other"自定义文本 → 直接把那段文本作为 `reason`(不加方括号,因为不是预定义分类)。
+   - 用户取消(没选任何选项) → 把 `reason` 留空字符串提交,继续后续步骤,**不要追问第二次**。
 
 4. **定位 feedback.py**:按下面顺序找,用第一个存在的:
    1. `.claude/skills/synhub/scripts/feedback.py`(项目级 skill)
