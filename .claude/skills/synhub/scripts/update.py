@@ -18,6 +18,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Windows 控制台默认 GBK,emoji/中文输出会 UnicodeEncodeError;强制 stdout/stderr 用 UTF-8
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
+
 
 def skill_root() -> Path:
     """skill 根目录:scripts/.. → .claude/skills/synhub/"""

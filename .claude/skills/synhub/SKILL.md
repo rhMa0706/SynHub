@@ -126,16 +126,28 @@ allowed-tools: Bash(python *) Read Glob AskUserQuestion
 
 ## 知识库范围与自动路由
 
-3 个知识库,按查询关键词自动路由:
+当前接入 16 个知识库,按查询关键词自动路由(完整关键词见 `config/settings.py:DOMAIN_MAP`):
 
 | 领域 | dataset_id | 触发关键词(部分) |
 |------|------|------|
-| SDC | `b26e181e-fc6c-4371-8a11-3e19580afd85` | sdc, constraint, timing, clock, false_path, 约束 |
-| memory | `fa43ebb5-0333-4e8f-9351-33952daafaec` | memory, sram, mick, vclint, broadway, 触发器 |
-| 低功耗 | `99d29d7f-bd5a-491d-b34f-3cb1cef5eac7` | upf, clp, isolation, level_shifter, 功耗, 隔离 |
+| SDC 知识库 | `b26e181e-fc6c-4371-8a11-3e19580afd85` | sdc, constraint, input_delay, output_delay, false_path, multicycle |
+| SDC Part2 | `dce185be-b1c9-4a86-bd4d-7e6d43346255` | sdc, constraint, input_delay, output_delay, false_path, multicycle |
+| 时序分析 | `bb4d9587-8010-46b1-b8cf-8798b0c6a0eb` | timing, sta, primetime, pt, slack, setup |
+| Memory Part1 | `fa43ebb5-0333-4e8f-9351-33952daafaec` | memory, mem, sram, rom, dram, register |
+| Memory Part2 | `52dfe94f-507e-4cff-a172-6d86d90bc582` | memory, mem, sram, rom, dram, register |
+| 低功耗领域 | `99d29d7f-bd5a-491d-b34f-3cb1cef5eac7` | low_power, upf, clp, power, isolation, level_shifter |
+| 低功耗 Part 2 | `e7c1e746-e1d0-4bb3-b378-d36e6fe08291` | low_power, upf, clp, power, isolation, level_shifter |
+| DFT | `5c906757-2747-4718-9522-bd17852035ab` | dft, atpg, scan, scan_chain, bist, mbist |
+| PPA | `39a13266-3e70-43bb-9e38-32c7ff6e5eea` | ppa, qor, area, power, performance, utilization |
+| LEC | `fb33c54a-42ea-45ae-8b1a-668d6c71d8c4` | lec, formality, conformal, equivalence, 等价性检查, 逻辑等价 |
+| Signoff | `acc7250a-026f-437f-86bc-28c45f2b383f` | signoff, sign_off, sign-off, release, 交付检查, 签核 |
+| 穿线 | `82a67a2c-f83c-41be-9fa8-d8646bdad631` | 穿线, feedthrough, feed_through, port_punch, 打洞, 穿孔 |
+| 综合策略 | `2fb30098-e238-4daa-992c-d7b9d735e87c` | synthesis, genus, dc, design_compiler, 综合, 综合策略 |
+| 项目经验 | `86fdcf82-e017-4069-bcbc-b38565f3ba46` | 项目经验, 项目总结, 经验, 案例, case_study, lessons |
+| 交付 | `a7851884-20e8-47f8-a46f-2492de614646` | 交付, delivery, release, netlist, gds, handoff |
+| 复盘 | `e4821655-d759-41ce-ad6d-7d09ee6de943` | 复盘, review, retro, retrospective, postmortem, 问题复盘 |
 
 不传 `dataset_id` 时:命中某领域则只搜该库,跨域(差距 ≤ 1)则并搜,不命中则搜全部 + RRF 融合。
-
 ## 回答规范(调用 MCP 后必须遵循)
 
 ### 1. 基于检索结果,不编造
