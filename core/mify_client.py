@@ -46,6 +46,69 @@ def _kw_hit(kw: str, lower_query: str) -> bool:
     return kw in lower_query
 
 
+_CONJ_PATTERNS = [
+    r"^(.+?)\s*和\s*(.+)$",
+    r"^(.+?)\s*与\s*(.+)$",
+    r"^(.+?)\s+vs\.?\s+(.+)$",
+    r"^(.+?)\s+VS\.?\s+(.+)$",
+]
+_INTENT_WORDS = ("分别", "对比", "差异", "两个案例", "两个方案", "实现方案",
+                 "方法学", "flow", "策略", "案例")
+
+
+def _has_query_entity(s: str) -> bool:
+    """判断字符串能否作为独立检索 query:至少含一个可辨识实体。
+    过滤掉"优化?" "怎么办?" 这种纯动词/语气词残句。
+    """
+    # 英文标识符 >= 3 字符(含数字/下划线)
+    if re.search(r"[A-Za-z][A-Za-z0-9_]{2,}", s):
+        return True
+    # 连续中文 >= 3 字(排除 2 字动词)
+    if re.search(r"[一-鿿]{3,}", s):
+        return True
+    return False
+
+
+def _is_project_name(s: str) -> bool:
+    """含项目/工程专名:含数字版本号(v400/RTL1p0/F3/BB_MPW)或 CamelCase 长名(Fourier/Franklin/Broadway)。"""
+    if re.search(r"[A-Za-z]+\d|[A-Z]{2,}_[A-Z]", s):
+        return True
+    if re.search(r"\b[A-Z][a-z]{3,}\b", s):
+        return True
+    return False
+
+
+def _split_conjunction(query: str) -> tuple[str, str] | None:
+    """检测并列结构 "A 和 B 分别..."并切成两个子查询。
+
+    触发条件(全部满足):
+      1) 匹配 "X 和/与/vs Y"(取第一个并列词)
+      2) 句中含意图词(分别/对比/差异/案例/方法学/flow/策略/两个方案/实现方案)
+         或 至少一侧含项目专名
+      3) 两侧都是可独立检索的实体(英文标识符 >=3 字符 或 连续中文 >=3 字)
+
+    返回 None 表示不该拆分。
+    """
+    q = query.strip()
+    for pat in _CONJ_PATTERNS:
+        m = re.match(pat, q, re.IGNORECASE)
+        if m:
+            left, right = m.group(1).strip(), m.group(2).strip()
+            break
+    else:
+        return None
+
+    has_intent = any(w in q for w in _INTENT_WORDS)
+    has_proj = _is_project_name(left) or _is_project_name(right)
+    if not (has_intent or has_proj):
+        return None
+
+    if not (_has_query_entity(left) and _has_query_entity(right)):
+        return None
+
+    return (left, right)
+
+
 def classify_domain(query: str) -> list[str]:
     """根据查询内容判断所属领域，返回匹配的 dataset_id 列表。
 
@@ -235,6 +298,7 @@ def _build_queries(query: str, dataset_id: str | None = None, *, num_variants: i
     策略:
     1. 原始查询
     1.5. 项目名缩写桥接（如 BroadwayV100 → BW）
+    1.7. 并列结构切分（如 "A 和 B 分别..." → 拆成 A / B 两子查询)
     2. 短缩写展开（如 ISO → isolation cell）
     2.5. 技术标识符文档标题桥接（error code → 标题匹配）
     3. 部分缩写展开（查询中嵌入的缩写子串替换）
@@ -256,6 +320,21 @@ def _build_queries(query: str, dataset_id: str | None = None, *, num_variants: i
             if variant not in queries:
                 queries.append(variant)
             break
+
+    # 策略1.7: 并列结构切分 —— "A 和 B 分别/对比" 拆成两个子 query
+    # 触发条件(全部满足):
+    #   1) 匹配 "X 和/与/vs Y"
+    #   2) 意图信号: 句中含 分别/对比/差异/两个案例/两个方案/实现方案/方法学/flow/策略/案例
+    #      或 至少一侧含项目专名(含数字版本号如 v400/RTL1p0/F3,或 CamelCase 项目名)
+    #   3) 两侧都是可独立检索的实体(英文标识符 >=3 字符 或 连续中文 >=3 字)
+    # 目的: multi_doc 类查询中第二实体被稀释,拆开让每个实体独立召回后进 RRF。
+    split = _split_conjunction(stripped)
+    if split:
+        left_q, right_q = split
+        if left_q not in queries:
+            queries.append(left_q)
+        if right_q not in queries:
+            queries.append(right_q)
 
     # 策略2: 短缩写展开
     if lower in _ABBREV_MAP and len(stripped) <= 5:
