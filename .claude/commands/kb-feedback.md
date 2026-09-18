@@ -23,11 +23,11 @@ allowed-tools: Bash(python *) AskUserQuestion
    - `answer`:你针对那条提问给出的回答正文(完整保留,不要二次概括)。
    - `tool_calls`:那次回答过程中调用的检索工具及关键参数(例如 `search_synthesis_knowledge(query=..., top_k=...)` 命中的 `document_name` 列表、score)。如果那次回答没用任何工具,如实写"未使用知识库检索工具,基于对话上下文直接回答"。
 
-3. **`reason` 字段(关键 — 走分类卡 + 可选自由文本)**:
+3. **`reason` 字段 + `user` 字段(关键 — 走分类卡 + 可选自由文本)**:
 
-   **3a. 如果 `$ARGUMENTS` 非空** —— 用户走的是快捷通道,直接把 `$ARGUMENTS` 作为 `reason`,**不要弹分类卡**,跳到第 4 步。
+   **3a. 如果 `$ARGUMENTS` 非空** —— 用户走的是快捷通道,直接把 `$ARGUMENTS` 作为 `reason`,**不要弹分类卡**。`user` 取当前终端环境变量 `USERNAME` 或 `USER`(Windows 优先 `USERNAME`),没有则用 `"unknown"`。跳到第 4 步。
 
-   **3b. 如果 `$ARGUMENTS` 为空** —— 用 `AskUserQuestion` 工具弹一次分类卡,**只问一个问题**:
+   **3b. 如果 `$ARGUMENTS` 为空** —— 用 `AskUserQuestion` 工具弹一次分类卡,**问两个问题**:
 
    ```
    AskUserQuestion(
@@ -38,17 +38,24 @@ allowed-tools: Bash(python *) AskUserQuestion
        "options": [
          {"label": "知识库未覆盖", "description": "Claude 说未命中或基于通用知识答 — 该补文档"},
          {"label": "答非所问", "description": "没回答用户实际问的点"},
-         {"label": "引用文档不对", "description": "标注的 [document_name] 跟内容不匹配"},
          {"label": "内容错误", "description": "答了但事实/参数/规则错"},
          {"label": "信息不完整", "description": "答对但漏关键信息(前提/例外/步骤)"}
+       ]
+     }, {
+       "question": "你的名字?(用于反馈记录,方便维护者跟进)",
+       "header": "用户名",
+       "multiSelect": false,
+       "options": [
+         {"label": "<当前终端 USERNAME 或 USER>(默认)", "description": "直接用系统用户名"},
+         {"label": "匿名反馈", "description": "不记录用户名"}
        ]
      }]
    )
    ```
 
-   - 用户选完后,把选中的 label 包成 `[分类标签]` 拼到 `reason` 里,例如选了"内容错误" → `reason = "[内容错误]"`。
-   - 用户走"Other"自定义文本 → 直接把那段文本作为 `reason`(不加方括号,因为不是预定义分类)。
-   - 用户取消(没选任何选项) → 把 `reason` 留空字符串提交,继续后续步骤,**不要追问第二次**。
+   - 反馈分类处理:用户选完后,把选中的 label 包成 `[分类标签]` 拼到 `reason` 里,例如选了"内容错误" → `reason = "[内容错误]"`。用户走"Other"自定义文本 → 直接把那段文本作为 `reason`(不加方括号)。用户取消 → `reason` 留空。
+   - 用户名处理:用户在第二个问题里选了推荐项 → `user` 取终端环境变量 `USERNAME`/`USER`。用户走"Other"手动输入 → `user` 取输入文本。用户取消或留空 → `user` 取终端环境变量 `USERNAME`/`USER`,都没有则 `"unknown"`。
+   - 用户取消所有问题(没选任何选项) → `reason` 和 `user` 都走默认值,**不要追问第二次**。
 
 4. **定位 feedback.py**:按下面顺序找,用第一个存在的:
    1. `.claude/skills/synhub/scripts/feedback.py`(项目级 skill)
@@ -56,9 +63,9 @@ allowed-tools: Bash(python *) AskUserQuestion
 
    找不到就告诉用户:"没找到 feedback.py,先跑接入流程或检查 skill 是否安装"并停下。
 
-5. **直接调用 Bash 跑脚本**(把四个字段安全转义后传进去,`reason` 即使空字符串也要传):
+5. **直接调用 Bash 跑脚本**(把五个字段安全转义后传进去,`reason` 即使空字符串也要传):
    ```
-   python <feedback.py 路径> --question "<question>" --answer "<answer>" --tool-calls "<tool_calls>" --reason "<reason>"
+   python <feedback.py 路径> --question "<question>" --answer "<answer>" --tool-calls "<tool_calls>" --reason "<reason>" --user "<user>"
    ```
    - 在 PowerShell / Bash 里都用双引号包字段,字段内的双引号转义为 `\"`,换行用真实换行(脚本会按 argv 接收完整字符串)。
    - 如果字段太长(>2000 字符),不要自己截断,脚本里有 `MAX_FIELD_LEN` 自动处理。

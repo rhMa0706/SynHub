@@ -119,9 +119,10 @@ def truncate(s: str, n: int = MAX_FIELD_LEN) -> str:
     return s[:n] + f"\n\n... (已截断,原文 {len(s)} 字符)"
 
 
-def build_content(question: str, answer: str, tool_calls: str, reason: str) -> list:
+def build_content(question: str, answer: str, tool_calls: str, reason: str, user: str = "") -> list:
     """构建飞书 post 消息的 content 数组。"""
-    user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+    if not user:
+        user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = []
@@ -207,18 +208,20 @@ def send_webhook(payload: dict) -> bool:
 
 def send_to_collect(question: str, answer: str, tool_calls: str, reason: str,
                     message_id: str = "", chat_id: str = "",
-                    doc_names: str = "", scores: str = "") -> bool:
+                    doc_names: str = "", scores: str = "", user: str = "") -> bool:
     """双写：把反馈写入多维表格。
     优先 COLLECT_URL（本机 collect.js 转发），否则直连飞书 Bitable API。
     """
-    user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+    if not user:
+        user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # 字段必须与多维表格实际列名一致：
-    # time / query / answer / tool_calls / reason / doc_names / scores
-    # （表上还有一列“文本”保留留空，不在此处发送）
+    # time / user / query / answer / tool_calls / reason / doc_names / scores
+    # （表上还有一列"文本"保留留空，不在此处发送）
     fields = {
         "time": ts,
+        "user": user,
         "query": question,
         "answer": answer[:2000] if answer else "",
         "tool_calls": tool_calls[:2000] if tool_calls else "",
@@ -299,12 +302,15 @@ def preflight() -> bool:
     return True
 
 
-def send(question: str, answer: str, tool_calls: str, reason: str) -> bool:
+def send(question: str, answer: str, tool_calls: str, reason: str, user: str = "") -> bool:
     """发送反馈:优先用 API,失败时 fallback 到 webhook。同时双写多维表格。"""
+    if not user:
+        user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+
     if not preflight():
         return False
 
-    content = build_content(question, answer, tool_calls, reason)
+    content = build_content(question, answer, tool_calls, reason, user)
 
     # 从 tool_calls 中提取文档名和分数
     doc_names = ""
@@ -328,7 +334,6 @@ def send(question: str, answer: str, tool_calls: str, reason: str) -> bool:
             print("⚠️  API 发送失败，尝试 fallback webhook...")
 
     if not ok:
-        user = os.getenv("USER") or os.getenv("USERNAME") or "unknown"
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         text_lines = [f"📝 SynHub 反馈 @ {ts}"]
         if question:
@@ -344,7 +349,7 @@ def send(question: str, answer: str, tool_calls: str, reason: str) -> bool:
             ok = True
 
     # 双写：无论群消息是否成功，都尝试写多维表格
-    send_to_collect(question, answer, tool_calls, reason, doc_names=doc_names, scores=scores)
+    send_to_collect(question, answer, tool_calls, reason, doc_names=doc_names, scores=scores, user=user)
 
     return ok
 
@@ -355,12 +360,13 @@ def main():
     parser.add_argument("--answer", default="", help="Claude 给出的回答")
     parser.add_argument("--tool-calls", default="", help="本次回答用到的检索 query / 文档 / 思考过程")
     parser.add_argument("--reason", default="", help="用户填写的不满意原因(可选)")
+    parser.add_argument("--user", default="", help="反馈用户的名称(可选,默认取系统 USERNAME)")
     args = parser.parse_args()
 
     if not (args.question or args.answer or args.reason):
         sys.exit("❌ 至少要提供 --question、--answer 或 --reason 之一")
 
-    if send(args.question, args.answer, args.tool_calls, args.reason):
+    if send(args.question, args.answer, args.tool_calls, args.reason, args.user):
         print("✅ 反馈已发送给 SynHub 维护者,谢谢!")
     else:
         print("\n如果反复失败,请把以下内容贴给 rhMa0706:")

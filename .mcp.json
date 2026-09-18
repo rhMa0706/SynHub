@@ -4,7 +4,10 @@
       "command": "python",
       "args": [
         "C:\\Users\\RuohanMa\\projs\\SynHub\\adapters\\mcp_server.py"
-      ]
+      ],
+      "env": {
+        "MIFY_DATASET_IDS": "b26e181e-fc6c-4371-8a11-3e19580afd85,dce185be-b1c9-4a86-bd4d-7e6d43346255,bb4d9587-8010-46b1-b8cf-8798b0c6a0eb,fa43ebb5-0333-4e8f-9351-33952daafaec,52dfe94f-507e-4cff-a172-6d86d90bc582,99d29d7f-bd5a-491d-b34f-3cb1cef5eac7,e7c1e746-e1d0-4bb3-b378-d36e6fe08291,5c906757-2747-4718-9522-bd17852035ab,39a13266-3e70-43bb-9e38-32c7ff6e5eea,fb33c54a-42ea-45ae-8b1a-668d6c71d8c4,acc7250a-026f-437f-86bc-28c45f2b383f,82a67a2c-f83c-41be-9fa8-d8646bdad631,2fb30098-e238-4daa-992c-d7b9d735e87c,86fdcf82-e017-4069-bcbc-b38565f3ba46,a7851884-20e8-47f8-a46f-2492de614646,e4821655-d759-41ce-ad6d-7d09ee6de943"
+      }
     },
     "feishu-mcp": {
       "transport": "sse",
