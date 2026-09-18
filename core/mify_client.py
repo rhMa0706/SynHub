@@ -309,6 +309,9 @@ def _build_queries(query: str, dataset_id: str | None = None, *, num_variants: i
     """
     stripped = query.strip()
     queries = [stripped]
+    # 错误码相关变体(策略 2.5 标题匹配 + 策略 2.6 意图扩展)优先保留,不受 num_variants 截断,
+    # 避免在意图扩展额度耗尽 num_variants 时,低价值的空格拆分/中英桥接把它们挤掉
+    errcode_variants: set[str] = set()
     lower = stripped.lower()
 
     # 策略1.5: 项目名缩写桥接
@@ -341,22 +344,64 @@ def _build_queries(query: str, dataset_id: str | None = None, *, num_variants: i
         queries.append(_ABBREV_MAP[lower])
 
     # 策略2.5: 技术标识符文档标题桥接
-    # 查询中包含 error code 类标识符（如 1801_REF_OBJ_NOT_FOUND）时，
-    # 在文档标题缓存中搜完整标题作为 RRF 变体。
+    # 查询中包含 error code 类标识符时，在文档标题缓存中搜完整标题作为 RRF 变体。
     # 原因：Mify 分词器把【clp】粘进 token，裸 error code 做 keyword search 找不到目标文档。
-    # error code 特征：含下划线的技术标识符（如 1801_REF_OBJ_NOT_FOUND、ISO_REDUNDANT）
-    # 当 domain 路由失败时，遍历所有 dataset 的标题缓存（SDC 文档无前缀，低功耗文档含【clp】前缀）
-    _tech_id_re = re.compile(r"\b[A-Z0-9]+_[A-Z0-9_]+(?:-[A-Z0-9]+)?\b")
+    # 支持两种形态:
+    #   (a) EDA error code: 字母-数字(2~4位),如 PTE-060、UITE-529、SEL-001、UIITE-416
+    #   (b) 含下划线的技术标识符: 如 1801_REF_OBJ_NOT_FOUND、ISO_REDUNDANT
+    # 当 domain 路由失败时，遍历所有 dataset 的标题缓存(SDC 文档无前缀，低功耗文档含【clp】前缀)
+    _tech_id_re = re.compile(
+        r"\b[A-Z]+-\d{2,4}\b"                          # 形态 a: PTE-060 / UITE-529 等
+        r"|\b[A-Z0-9]+_[A-Z0-9_]+(?:-[A-Z0-9]+)?\b"    # 形态 b: 含下划线的标识符
+    )
     tech_tokens = _tech_id_re.findall(stripped)
     if tech_tokens:
+        # 错误码归一化: PTE-60 → 也尝试 PTE-060 (团队文档标题用 3 位数字为主)
+        # 数字段短于 3 位时,前导补零到 3 位;长于 3 位保持原样
+        _errcode_re = re.compile(r"^([A-Z]+)-(\d+)$")
+        norm_tokens: list[str] = []
+        for tok in tech_tokens:
+            norm_tokens.append(tok)
+            m = _errcode_re.match(tok)
+            if m and len(m.group(2)) < 3:
+                padded = f"{m.group(1)}-{m.group(2).zfill(3)}"
+                if padded != tok:
+                    norm_tokens.append(padded)
+
         # 路由到具体 dataset；路由失败时搜全部 dataset
         ds_ids = [dataset_id] if dataset_id else MIFY_DATASET_IDS
         for ds in ds_ids:
             titles = _fetch_doc_titles(ds)
-            for token in tech_tokens[:4]:      # 最多处理 4 个标识符
+            for token in norm_tokens[:6]:      # 最多处理 6 个标识符(补零后可能翻倍)
                 matching = [t for t in titles if token in t and t not in queries]
                 for t in matching[:2]:         # 每标识符最多加 2 个标题
                     queries.append(t)
+                    errcode_variants.add(t)
+        # 让下游意图扩展也用到归一化后的 token
+        tech_tokens = norm_tokens
+
+    # 策略2.6: 问答意图扩展 —— "怎么修/是什么/为什么" 类问题命中错误码时,
+    # 额外加入错误码文档模板字段作为 RRF 变体,让"定义/根因/fix" 章节的分段被顶上来,
+    # 压过同 token 出现的脚本片段。
+    # 团队错误码文档稳定模板: ## 描述 / ## 根因分析 / ## 怎么fix / Name:XXX-NNN
+    _INTENT_RE = re.compile(
+        r"怎么修|如何修|怎么解|如何解|怎么办|是什么|什么意思|为什么|原因|"
+        r"\bfix\b|\bhow\s+to\b|\bwhat\s+is\b|\bwhy\b",
+        re.IGNORECASE,
+    )
+    if tech_tokens and _INTENT_RE.search(stripped):
+        _INTENT_SECTIONS = ("描述", "根因分析", "怎么fix", "Name")
+        # 只用前 2 个 token 展开,避免变体爆炸
+        seen_intent: set[str] = set()
+        for token in tech_tokens[:2]:
+            if token in seen_intent:
+                continue
+            seen_intent.add(token)
+            for section in _INTENT_SECTIONS:
+                variant = f"{token} {section}"
+                if variant not in queries:
+                    queries.append(variant)
+                    errcode_variants.add(variant)
 
     # 策略3: 部分缩写展开 —— 对查询中嵌入的缩写做子串替换
     expanded = stripped
@@ -452,6 +497,18 @@ def _build_queries(query: str, dataset_id: str | None = None, *, num_variants: i
                 queries.append(w)
 
     limit = num_variants if num_variants is not None else MIFY_NUM_VARIANTS
+    # 错误码相关变体优先保留,不受 limit 截断;其他变体按顺序填充直到达到 limit
+    # 至少保留原始 query(queries[0])
+    if errcode_variants:
+        protected: list[str] = []
+        rest: list[str] = []
+        for i, q in enumerate(queries):
+            if i == 0 or q in errcode_variants:
+                protected.append(q)
+            else:
+                rest.append(q)
+        remaining = max(0, limit - len(protected))
+        return protected + rest[:remaining]
     return queries[:limit]
 
 
