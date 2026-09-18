@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import re
 import sys
 import time
@@ -386,70 +387,76 @@ def _compute_precision(results: list[dict[str, Any]], expected: list[str]) -> tu
 def _compute_rrf_quality(results: list[dict[str, Any]]) -> float:
     """计算 RRF 融合质量得分 (0-20)。
 
-    评估标准:
-    1. 是否存在 rrf_score（说明融合成功）: 5 分
-    2. rrf_score 分布是否合理（top-1 应显著高于 top-K）: 5 分
-    3. 高 score 的文档是否排在前面（排名一致性）: 5 分
-    4. 结果数量是否足够: 5 分
+    四个子项衡量 rrf_k 取值是否合理:
+    1. 排名集中度 (5分): top-1 是否显著领先于其他结果
+    2. 分数下降梯度 (5分): 相邻排名分数差是否递减（排名有层次感）
+    3. 尾部分离度 (5分): top-K 末尾结果是否被有效压低
+    4. 分数熵 (5分): 分布信息量是否在合理区间
     """
     if not results:
         return 0.0
 
+    rrf_scores = [r.get("rrf_score", 0) for r in results]
+    if not rrf_scores or rrf_scores[0] <= 0:
+        return 0.0
+
     score_total = 0.0
 
-    # 1. 存在 rrf_score (5分)
-    has_rrf = all("rrf_score" in r for r in results)
-    if has_rrf:
-        score_total += 5.0
-    elif any("rrf_score" in r for r in results):
-        score_total += 3.0
-
-    # 2. rrf_score 分布合理性 (5分)
-    rrf_scores = [r.get("rrf_score", 0) for r in results]
+    # 1. 排名集中度 (5分): top-1 / mean(rest)
     if len(rrf_scores) >= 2:
-        top_rrf = rrf_scores[0]
-        bottom_rrf = rrf_scores[-1]
-        if top_rrf > 0 and bottom_rrf > 0:
-            ratio = top_rrf / bottom_rrf
-            # top 应该比 bottom 高，但不应极端
-            if 1.0 < ratio <= 10.0:
-                score_total += 5.0
-            elif 1.0 < ratio <= 20.0:
-                score_total += 3.0
-            elif ratio > 20.0:
-                score_total += 1.0  # 分布过于集中
-            else:
-                score_total += 2.0  # 分布过于平坦
-        elif top_rrf > 0:
-            score_total += 3.0
-    elif len(rrf_scores) == 1:
-        score_total += 3.0
-
-    # 3. 排名一致性 (5分) —— score 高的文档排名也高
-    score_values = [r.get("score", 0) for r in results]
-    if len(score_values) >= 2:
-        consistent = True
-        for j in range(len(score_values) - 1):
-            # 如果 rrf_score 排序中，score 低的排在 score 高的前面超过 3 次
-            if rrf_scores[j] < rrf_scores[j + 1] and score_values[j] < score_values[j + 1]:
-                pass  # rrf 排序和 score 排序不一致
-            if score_values[j] < score_values[j + 1] and rrf_scores[j] > rrf_scores[j + 1]:
-                consistent = False
-        if consistent:
+        rest_mean = sum(rrf_scores[1:]) / len(rrf_scores[1:])
+        concentration = rrf_scores[0] / rest_mean if rest_mean > 0 else 0
+        if concentration > 1.5:
             score_total += 5.0
+        elif concentration > 1.2:
+            score_total += 3.0
         else:
-            score_total += 2.0
+            score_total += 1.0
     else:
         score_total += 3.0
 
-    # 4. 结果数量 (5分)
-    n = len(results)
-    if n >= 5:
-        score_total += 5.0
-    elif n >= 3:
+    # 2. 分数下降梯度 (5分): gaps 递减 → 排名有层次
+    if len(rrf_scores) >= 3:
+        gaps = [rrf_scores[i] - rrf_scores[i + 1] for i in range(len(rrf_scores) - 1)]
+        # 统计递减的 gap 数量
+        decreasing = sum(1 for i in range(len(gaps) - 1) if gaps[i] > gaps[i + 1])
+        ratio = decreasing / (len(gaps) - 1) if len(gaps) > 1 else 0
+        if ratio >= 0.7:
+            score_total += 5.0
+        elif ratio >= 0.4:
+            score_total += 3.0
+        else:
+            score_total += 1.0
+    else:
         score_total += 3.0
-    elif n >= 1:
-        score_total += 1.0
+
+    # 3. 尾部分离度 (5分): top-1 / top-K 末尾
+    if len(rrf_scores) >= 2 and rrf_scores[-1] > 0:
+        tail_ratio = rrf_scores[0] / rrf_scores[-1]
+        if tail_ratio > 1.3:
+            score_total += 5.0
+        elif tail_ratio > 1.1:
+            score_total += 3.0
+        else:
+            score_total += 1.0
+    else:
+        score_total += 3.0
+
+    # 4. 分数熵 (5分): 归一化信息熵，衡量分布集中 vs 平坦
+    total = sum(rrf_scores)
+    if total > 0 and len(rrf_scores) >= 2:
+        probs = [s / total for s in rrf_scores]
+        entropy = -sum(p * math.log(p) for p in probs if p > 0)
+        max_entropy = math.log(len(rrf_scores))
+        norm_entropy = entropy / max_entropy if max_entropy > 0 else 0
+        if 0.3 < norm_entropy < 0.7:
+            score_total += 5.0
+        elif 0.2 < norm_entropy <= 0.3 or 0.7 <= norm_entropy < 0.8:
+            score_total += 3.0
+        else:
+            score_total += 1.0
+    else:
+        score_total += 3.0
 
     return score_total
 

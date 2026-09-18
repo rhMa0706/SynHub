@@ -218,28 +218,43 @@ def parse_questions(filepath: str | Path) -> list[Question]:
 # ---------------------------------------------------------------------------
 
 
+# CJK 全角标点 → ASCII 半角映射
+# 解决文档名中全角/半角冒号等字符不匹配问题（如 案例:【SYN】 vs 案例：【SYN】）
+_CJK_PUNCT_NORMALIZE = str.maketrans({
+    "：": ":",    # ： → :
+    "（": "(",    # （ → (
+    "）": ")",    # ） → )
+    "，": ",",    # ， → ,
+    "。": ".",    # 。 → .
+    "；": ";",    # ； → ;
+    "！": "!",    # ！ → !
+    "？": "?",    # ？ → ?
+    "【": "[",    # 【 → [
+    "】": "]",    # 】 → ]
+})
+
+
+def _normalize_doc_name(name: str) -> str:
+    """标准化文档名：全角标点 → 半角，去首尾空白，小写。"""
+    return name.strip().translate(_CJK_PUNCT_NORMALIZE).lower()
+
+
 def _doc_matches(expected_doc: str, actual_doc: str) -> bool:
     """检查预期文档名是否与实际文档名匹配（精确匹配或包含关系）。"""
-    exp = expected_doc.strip().lower()
-    act = actual_doc.strip().lower()
+    exp = _normalize_doc_name(expected_doc)
+    act = _normalize_doc_name(actual_doc)
 
     # 精确匹配
     if exp == act:
         return True
 
-    # 包含关系：预期文档名包含在实际文档名中
-    if exp in act:
+    # 包含关系：用词边界正则，避免 "clock table" 误匹配 "clock relation table"
+    # 也正确处理 "UPF gen flow" 匹配 "UPF gen flow 低功耗"
+    if re.search(r"\b" + re.escape(exp) + r"\b", act):
         return True
 
-    # 反向包含：实际文档名包含在预期文档名中
-    if act in exp:
-        return True
-
-    # 关键词匹配：预期文档名的核心词出现在实际文档名中
-    # 例如 "UPF gen flow" 匹配 "UPF gen flow 低功耗"
-    exp_words = set(exp.split())
-    act_words = set(act.split())
-    if exp_words and exp_words.issubset(act_words):
+    # 反向包含
+    if re.search(r"\b" + re.escape(act) + r"\b", exp):
         return True
 
     return False
