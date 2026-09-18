@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.2.0 — 2026-09-18
+
+检索质量闭环 + 用户体验修复。
+
+### 新增
+
+- **错误码检索增强** — `_tech_id_re` 新增 `[A-Z]+-\d{2,4}` 分支覆盖 PTE-060 / UITE-529 / SEL-001 形态，配合数字补零命中团队文档标题惯例；新增策略 2.6 问答意图扩展，检出错误码+意图时追加 `<token> 描述/根因分析/怎么fix/Name` 四条 RRF 变体；`errcode_variants` 截断保护确保错误码变体不被低价值变体挤掉。v3 通过率 88.7% → 92.5%
+- **MCP tool description 错误码判定硬约束** — `search_synthesis_knowledge` docstring 增加 ~40 行判定规则，未命中时强制声明、严禁基于共现脚本片段编造定义
+- **RRF 评分重写** — 从 4 个定性项改为 4 个定量项（排名集中度 / 分数下降梯度 / 尾部分离度 / 分数熵），每项有明确计算公式和阈值
+- **kb-feedback 用户名采集** — `feedback.py` 新增 `--user` 参数，Bitable 字段从 7 列扩为 8 列（新增 `user` 列）；分类卡从 1 问题扩为 2 问题（反馈分类 + 用户名）；选项数适配 AskUserQuestion 2–4 限制
+- **`.mcp.json` 注入 16 库 `MIFY_DATASET_IDS`** — MCP server 启动时直接用
+
+### 修复
+
+- **飞书文档 URL 归一化** — 新增 `_normalize_doc_url`，Mify 签名链接自动替换为 `mi.feishu.cn/docx/<token>` 原始链接，解决用户浏览器打不开问题
+
+---
+
+## v1.1.0 — 2026-08-25
+
+16 库全景接入 + retriever 并列结构切分。
+
+### 新增
+
+- **DOMAIN_MAP 3→16 库全量接入** — 覆盖 SDC / 时序 / Memory / 低功耗 / DFT / PPA / LEC / Signoff / 穿线等全部 16 个知识库
+- **短关键词词边界修复** — `_kw_hit()` 对 ≤4 char 纯 ASCII 关键词强制词边界，修复 `ff/pd/rc/mc` 一族子串误伤
+- **`update.py` 全同步** — 从单纯 `git pull` 进化为 `.env` / `.mcp.json` / `SKILL.md` 三处同步，新用户装完自动补齐 16 库
+- **并列结构切分策略** — 策略 1.7 `_split_conjunction()`，对"A 和 B 分别…"类复合 query 拆为两条子 query + 原句参与 RRF 融合。v3 通过率 81.1% → 88.7%
+- **kb-feedback 分类卡** — 空原因时弹 5 类分类卡，选中的 label 包成 `[标签]` 拼进 reason
+- **datasets.json** — DOMAIN_MAP 序列化数据文件，供 `update.py` 消费
+- **colleague-guide.md** — 同事接入指南（凭证走占位符，真值飞书私聊）
+
+### 修复
+
+- **Windows GBK 控制台 emoji 崩溃** — `update.py` 顶部加 `sys.stdout.reconfigure(encoding='utf-8')`
+- **SDC/Memory/低功耗 alias 指向修正** — `_KB_ALIAS_TO_ID` 重新指向 Part 2 库（飞书批量导入的库），老库以 `-legacy` 保留
+- **GitHub Push Protection 拦 secret** — colleague-guide.md 凭证替换为 `<向维护者索取>` 占位符
+
+---
+
 ## v1.0.0 — 2026-06-04
 
 首个对外发布版本。
