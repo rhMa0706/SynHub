@@ -548,6 +548,27 @@ def _rrf_fuse(
 # Mify API retrieval
 # ---------------------------------------------------------------------------
 
+# 飞书 doc token 形态:20-32 位大小写字母+数字。
+# document_name 通常是 "<token>.md";Mify 走"上传文件"入库时会返回
+# service.mify.mioffice.cn/files/...?sign=... 签名链接,会过期且需平台登录,
+# 用户在浏览器中打不开。用 document_name 里的 token 拼飞书原始链接兜住。
+_FEISHU_TOKEN_RE = re.compile(r"^[A-Za-z0-9]{20,32}$")
+
+
+def _normalize_doc_url(doc_url: str, document_name: str) -> str:
+    """把 Mify 返回的文档链接归一化为飞书原始链接。
+
+    - 已经是 mi.feishu.cn/docx|wiki/... 原样返回
+    - 其他形态(Mify 签名链接、空 URL)用 document_name 的飞书 token 拼 docx 链接
+    - document_name 不是标准 token → fallback 保留原 doc_url
+    """
+    if "mi.feishu.cn/docx/" in doc_url or "mi.feishu.cn/wiki/" in doc_url:
+        return doc_url
+    token = document_name.rsplit(".md", 1)[0] if document_name.endswith(".md") else document_name
+    if _FEISHU_TOKEN_RE.match(token):
+        return f"https://mi.feishu.cn/docx/{token}"
+    return doc_url
+
 
 def _fetch_one_variant(
     url: str,
@@ -584,12 +605,13 @@ def _fetch_one_variant(
     for record in resp.json().get("records", []):
         seg = record.get("segment", {})
         doc = seg.get("document", {})
+        document_name = doc.get("name", "")
         results.append({
             "id": seg.get("id", ""),
             "content": seg.get("content", ""),
             "score": record.get("score", 0),
-            "document_name": doc.get("name", ""),
-            "doc_url": doc.get("doc_url", ""),
+            "document_name": document_name,
+            "doc_url": _normalize_doc_url(doc.get("doc_url", ""), document_name),
         })
     return results
 
