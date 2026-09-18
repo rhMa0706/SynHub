@@ -34,7 +34,39 @@ def search_synthesis_knowledge(query: str, top_k: int = 5, dataset_id: str = "")
         query: 搜索问题，如 "clock gating 最佳实践"
         top_k: 返回结果数量，默认 5
         dataset_id: 可选，指定知识库 ID。为空则搜索所有知识库并合并排序
-    """
+
+    错误码类问答的判定规则(query 含 XXX-NNN 或 XXX_NNNN 形错误码,如 PTE-060 / UITE-529 /
+    SEL-001 / 1801_ISO_NO_STRATEGY / CROSSING_OFF_TO_ON_AON / clp-xxx 等,且问的是
+    "是什么/怎么修/为什么/根因/含义/fix/waive/如何处理"意图):
+
+      判定"命中定义":返回的分段里,至少有一段同时满足下面两个条件——
+        (a) 文档名或段落里出现完整错误码 token(如 `Name: PTE-060` / `# PTE-060` /
+            `## 1801_ISO_NO_STRATEGY_OFF_ON_PATH_ISO` 之类的标题或身份行);
+        (b) 该段或紧邻段里出现下列任一模板字段(命中任意一个即可):
+            - 描述/说明/含义/解释/现象/症状/问题描述/Message/报错内容/warning 内容/Description
+            - 根因/根因分析/原因/触发条件/触发场景/产生原因/Root cause/Cause/为什么
+            - 例子/示例/案例/Example/场景
+            - 怎么fix/如何fix/如何修复/修复/修复方法/解决/解决方案/处理方法/处理建议/建议/
+              action/Fix/Solution/Workaround
+            - 可waive/是否可waive/waive 方式/waive 建议
+            - 需要XX确认/需要XX修改/需 PD/DE/FE 确认或修改(这类文档里的 action item 段名)
+            - Severity/级别/严重程度/影响
+      两者缺一即视为"未命中定义"。段落里只出现错误码 token 但没有任何上述字段(例如只出现在
+      `unsuppress_message <token>` 这样的脚本行、log 行、`suppress_message` 参数、
+      项目通用初始化脚本、grep 结果里),一律按"未命中"处理。
+
+      未命中定义时,必须以下面这句开头回答,不得省略、改写或翻译:
+          "知识库未命中 <错误码 token> 的定义文档。"
+      然后才可以补充"检索到的相邻脚本/日志片段仅供参考,不足以确定该错误码的含义与修复方法",
+      并可选择列出片段供用户判断。**严禁**用相邻脚本片段反推错误码的定义或修法——
+      例如看到 `unsuppress_message PTE-060` 后面跟着 `group_path -name input2reg ...`
+      就推断 "PTE-060 = 未分组时序路径" 是典型的"共现读因果"错误,禁止此类推理。
+      同理禁止:看到 `set_dont_use <lib>` 附近的错误码就说该错误码是"库单元问题";看到
+      `waive <code>` 附近的行就把该行当成定义;看到日志上下文里的 traceback 就当成根因。
+
+      命中定义时,基于命中的分段逐字引用,不要用其他分段(尤其是脚本片段)覆盖或补写定义。
+      如果多段都命中,优先引用同时含 token + "描述" + "根因" + "怎么fix" 四类字段最全的
+      那一段;其他段作为补充。"""
     results = retrieve(query, top_k=top_k, dataset_id=dataset_id or None)
     if not results:
         return "未找到相关内容，请尝试换一个关键词。"
